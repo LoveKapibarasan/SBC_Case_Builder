@@ -106,8 +106,10 @@ split_bed_x = 220; // [100:1:500]
 split_bed_y = 220; // [100:1:500]
 // margin kept clear at the bed edges
 split_bed_margin = 8; // [0:1:40]
-// tile to render as "column_row" counted from 0, "all" shows every tile spread apart
+// tile to render as "column_row" counted from 0, "all" shows every tile spread apart, "test" renders a small joint test coupon
 split_tile = "all";
+// joint test coupon size [along the cut, into the part from the edge, max height]
+split_test_size = [80, 60, 50];
 // gap between tiles when showing all
 split_explode = 15; // [0:1:50]
 // cut position along x from the part edge for a two tile split, 0 picks one automatically

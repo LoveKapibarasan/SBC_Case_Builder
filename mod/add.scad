@@ -85,6 +85,15 @@ module add(type, loc_x, loc_y, loc_z, face, rotation, size, data, mask) {
     if(type == "grommet") {
         translate([loc_x,loc_y,loc_z])  rotate(rotation) grommet(data[0], data[1], size_x, size_y, size_z, data[2], mask);
     }
+    if(type == "fan_blank") {
+        translate([loc_x,loc_y,loc_z]) rotate(rotation) fan_blank(data[0],data[1],data[2],data[3],data[4] == undef ? .25 : data[4]);
+    }
+    if(type == "hd_cage") {
+        translate([loc_x,loc_y,loc_z]) rotate(rotation) hd_cage(data[0],data[1],data[2],data[3]);
+    }
+    if(type == "pcie_slot_cover") {
+        translate([loc_x,loc_y,loc_z]) rotate(rotation) pcie_slot_cover(size_x,size_z,size_y,data[0],data[1],data[2],data[3],data[4] == undef ? 3.4 : data[4]);
+    }
     if(type == "hd_holder") {
         translate([loc_x,loc_y,loc_z]) rotate(rotation) hd_mount(data[0],data[1],data[2],data[3]); 
     }

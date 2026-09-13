@@ -194,6 +194,36 @@ module split_part() {
     echo(split_cut_x_hole_clearance = [for(c = cx) split_clear(c, split_hole_axis(0))],
          split_cut_y_hole_clearance = [for(c = cy) split_clear(c, split_hole_axis(1))]);
 
+    // joint test coupon: both sides of the first cut, clipped to a small block that
+    // takes in the floor, the wall at the part edge and the wall flange, for a test print
+    if(split_tile == "test") {
+        axis = len(cx) > 0 ? 0 : 1;
+        c = len(cx) > 0 ? cx[0] : len(cy) > 0 ? cy[0] : undef;
+        if(c == undef) echo("split_part: no cut, nothing to test");
+        else {
+            half = split_test_size[0]/2;
+            reach = split_test_size[1];
+            tall = min(split_height(), split_test_size[2]);
+            echo(split_test_coupon = str(axis == 0 ? "x" : "y", " cut at ", c - (axis == 0 ? x0 : y0),
+                 ", block ", 2*half, " x ", reach, " x ", tall));
+            for(side = [-1, 1]) {
+                lo = side < 0 ? c - half : c;
+                translate(axis == 0 ? [side*split_explode/2, 0, 0] : [0, side*split_explode/2, 0])
+                difference() {
+                    intersection() {
+                        union() {
+                            children();
+                            split_flange(axis, c, side) children();
+                        }
+                        if(axis == 0) translate([lo, y0 - 1, -1]) cube([half, reach + 1, tall + 1]);
+                        else translate([x0 - 1, lo, -1]) cube([reach + 1, half, tall + 1]);
+                    }
+                    split_bolt_holes(axis, c, axis == 0 ? cy : cx);
+                }
+            }
+        }
+    }
+
     for(ci = [0:len(xs)-2]) {
         for(rj = [0:len(ys)-2]) {
             tile_name = str(ci, "_", rj);
