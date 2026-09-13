@@ -16,11 +16,11 @@
 
 
            NAME: split_part
-    DESCRIPTION: splits the top or bottom of a shell case into tiles that fit a
-                 print bed. every cut gets a flange on each side, standing up from
+    DESCRIPTION: splits the top or bottom of a shell case into as many tiles as it
+                 takes to fit a print bed. every cut gets a flange on each side, standing up from
                  the floor and running up the walls, and the two flanges are bolted
                  back to back with M3. cut positions are chosen automatically to
-                 keep clear of the sbc mounting holes.
+                 keep clear of the sbc mounting holes and of the keepout ranges.
            TODO: panel, tray and other case designs
 
           USAGE: split_part() children();
@@ -46,53 +46,61 @@ function split_hole_axis(axis) =
     [for(h = split_pcb_holes())
         axis == 0 ? h[0] : individual_part == "top" ? depth - h[1] : h[1]];
 
-// a cut is needed when the part does not fit the usable bed along that axis
-function split_needed(ln, bed) = ln > bed - split_bed_margin;
+// number of tiles along an axis so that every tile fits the usable bed
+function split_count(ln, bed) = max(1, ceil(ln / (bed - split_bed_margin)));
 
 // clearance of a candidate cut from every mounting hole
 function split_clear(c, holes) = len(holes) == 0 ? 1000 : min([for(h = holes) abs(h - c)]);
 
-/* cut position along one axis. a manual value is measured from the part's outer
-   edge. otherwise the search starts at the centre and walks outward, taking the
-   first position that keeps split_hole_clear from every hole while both tiles
-   still fit the bed */
-function split_cut(axis) =
+// keepout ranges [min, max] in case coordinates, converted to part view along the axis
+function split_keepouts(axis) =
+    axis == 0 ? split_keepout_x :
+    individual_part == "top" ? [for(k = split_keepout_y) [depth - k[1], depth - k[0]]] : split_keepout_y;
+
+// a cut is allowed when it keeps clear of holes and of every keepout range
+function split_ok(c, holes, keeps) =
+    (len(holes) == 0 || split_clear(c, holes) >= split_hole_clear) &&
+    len([for(k = keeps) if(c > k[0] - split_flange_t - 2 && c < k[1] + split_flange_t + 2) 1]) == 0;
+
+/* cut positions along one axis, in part view coordinates. with n tiles the k-th
+   cut starts at the equal division and walks outward to the first position that
+   keeps clear of holes and keepouts while the tile behind it and all the tiles
+   still to come fit the bed. a manual split_x / split_y is used for a two tile
+   split */
+function split_cuts(axis) =
     let(o = axis == 0 ? split_x0() : split_y0(),
         ln = axis == 0 ? width : depth,
         bed = (axis == 0 ? split_bed_x : split_bed_y) - split_bed_margin,
-        manual = axis == 0 ? split_x : split_y,
-        holes = split_hole_axis(axis),
-        lo = o + ln - bed,
-        hi = o + bed,
-        cands = [for(d = [0:1:ln/2]) for(c = [o + ln/2 - d, o + ln/2 + d])
-                    if(c >= lo && c <= hi && (len(holes) == 0 || split_clear(c, holes) >= split_hole_clear)) c])
-    manual > 0 ? o + manual : len(cands) > 0 ? cands[0] : o + ln/2;
+        n = split_count(ln, axis == 0 ? split_bed_x : split_bed_y),
+        manual = axis == 0 ? split_x : split_y)
+    n < 2 ? [] :
+    (n == 2 && manual > 0) ? [o + manual] :
+    split_cuts_rec(o, ln, bed, n, 1, o, split_hole_axis(axis), split_keepouts(axis), []);
+
+function split_cuts_rec(o, ln, bed, n, k, prev, holes, keeps, acc) =
+    k >= n ? acc :
+    let(target = o + ln*k/n,
+        cands = [for(d = [0:1:bed/2]) for(c = [target - d, target + d])
+                    if(c - prev <= bed && c - prev > 0 && (o + ln) - c <= bed*(n - k) &&
+                       split_ok(c, holes, keeps)) c],
+        c = len(cands) > 0 ? cands[0] : target)
+    split_cuts_rec(o, ln, bed, n, k + 1, c, holes, keeps, concat(acc, [c]));
 
 
-/* flange cross section for a cut normal to axis, as a 2D shape in the plane of
-   the cut. u runs along the cut, v is height */
+/* floor flange cross section for a cut normal to axis, as a 2D shape in the plane
+   of the cut. u runs along the cut, v is height */
 
-module split_flange_2d(axis) {
+module split_floor_flange_2d(axis) {
 
-    h = split_height();
-    // inner wall faces along the cut direction
     u0 = axis == 0 ? split_y0() + wallthick : split_x0() + wallthick;
     u1 = axis == 0 ? split_y0() + depth - wallthick : split_x0() + width - wallthick;
-    fh = split_flange_h;
-
-    union() {
-        // along the floor
-        translate([u0, 0]) square([u1 - u0, floorthick + fh]);
-        // up each wall
-        translate([u0, 0]) square([fh, h]);
-        translate([u1 - fh, 0]) square([fh, h]);
-    }
+    translate([u0, 0]) square([u1 - u0, floorthick + split_flange_h]);
 }
 
 
 /* bolt positions in a flange, [u, v] in the plane of the cut */
 
-function split_bolts(axis, other_cut) =
+function split_bolts(axis, other_cuts) =
     let(h = split_height(),
         u0 = (axis == 0 ? split_y0() : split_x0()) + wallthick,
         u1 = (axis == 0 ? split_y0() + depth : split_x0() + width) - wallthick,
@@ -101,7 +109,7 @@ function split_bolts(axis, other_cut) =
         n = max(2, floor((u1 - u0 - 2*fh) / split_bolt_spacing) + 1),
         floor_bolts = [for(k = [0:n-1])
             let(u = u0 + fh + split_bolt_edge + k*(u1 - u0 - 2*fh - 2*split_bolt_edge)/(n-1))
-                if(other_cut == undef || abs(u - other_cut) > split_flange_t + 4) [u, vf]],
+                if(len([for(oc = other_cuts) if(abs(u - oc) <= split_flange_t + 4) 1]) == 0) [u, vf]],
         // at least one bolt up each wall once the wall is tall enough to take it
         wall_free = h - floorthick - fh - split_bolt_edge,
         nv = wall_free < 2*split_bolt_edge ? 0 : max(1, floor(wall_free / split_bolt_spacing)),
@@ -111,26 +119,56 @@ function split_bolts(axis, other_cut) =
     concat(floor_bolts, wall_bolts);
 
 
-/* flange solid on one side of the cut. side is -1 for the low tile, +1 for the high */
+/* flange solid on one side of the cut. side is -1 for the low tile, +1 for the high.
+
+   the floor flange is a plain strip. the wall flange is the wall material actually
+   present at the cut, thickened by split_flange_h perpendicular to the wall, so it
+   follows openings such as the rear I/O aperture or expansion slots instead of
+   blocking them. children() is the unsplit part */
 
 module split_flange(axis, cut, side) {
 
     t = split_flange_t;
+    big = 1000;
+    fh = split_flange_h;
+    lo = side < 0 ? cut - t : cut;
+    // outer extent of the part, the grown wall is trimmed back to it
+    ox = split_x0();
+    oy = split_y0();
+
     if(axis == 0) {
-        translate([side < 0 ? cut - t : cut, 0, 0])
-            rotate([90, 0, 90]) linear_extrude(height = t) split_flange_2d(0);
+        translate([lo, 0, 0]) rotate([90, 0, 90]) linear_extrude(height = t) split_floor_flange_2d(0);
+        intersection() {
+            translate([ox, oy, 0]) cube([width, depth, split_height()]);
+            minkowski() {
+                intersection() {
+                    children();
+                    translate([lo, -big/2, floorthick + .01]) cube([t, big, big]);
+                }
+                translate([0, -fh, 0]) cube([.01, 2*fh, .01]);
+            }
+        }
     }
     else {
-        translate([0, side < 0 ? cut : cut + t, 0])
-            rotate([90, 0, 0]) linear_extrude(height = t) split_flange_2d(1);
+        translate([0, lo + t, 0]) rotate([90, 0, 0]) linear_extrude(height = t) split_floor_flange_2d(1);
+        intersection() {
+            translate([ox, oy, 0]) cube([width, depth, split_height()]);
+            minkowski() {
+                intersection() {
+                    children();
+                    translate([-big/2, lo, floorthick + .01]) cube([big, t, big]);
+                }
+                translate([-fh, 0, 0]) cube([2*fh, .01, .01]);
+            }
+        }
     }
 }
 
 
-module split_bolt_holes(axis, cut, other_cut) {
+module split_bolt_holes(axis, cut, other_cuts) {
 
     t = split_flange_t;
-    for(b = split_bolts(axis, other_cut)) {
+    for(b = split_bolts(axis, other_cuts)) {
         if(axis == 0) {
             translate([cut - t - 1, b[0], b[1]]) rotate([0, 90, 0]) cylinder(d=split_bolt_dia, h=2*t + 2, $fn=24);
         }
@@ -145,15 +183,16 @@ module split_part() {
 
     x0 = split_x0();
     y0 = split_y0();
-    cut_x = split_needed(width, split_bed_x) ? split_cut(0) : undef;
-    cut_y = split_needed(depth, split_bed_y) ? split_cut(1) : undef;
-    xs = cut_x == undef ? [x0 - 1000, x0 + width + 1000] : [x0 - 1000, cut_x, x0 + width + 1000];
-    ys = cut_y == undef ? [y0 - 1000, y0 + depth + 1000] : [y0 - 1000, cut_y, y0 + depth + 1000];
+    cx = split_cuts(0);
+    cy = split_cuts(1);
     big = 1000;
+    xs = concat([x0 - big], cx, [x0 + width + big]);
+    ys = concat([y0 - big], cy, [y0 + depth + big]);
 
-    echo(split_cut_x = cut_x == undef ? "none" : cut_x - x0, split_cut_y = cut_y == undef ? "none" : cut_y - y0);
-    if(cut_x != undef) echo(split_cut_x_hole_clearance = split_clear(cut_x, split_hole_axis(0)));
-    if(cut_y != undef) echo(split_cut_y_hole_clearance = split_clear(cut_y, split_hole_axis(1)));
+    echo(split_tiles = str(len(xs) - 1, " x ", len(ys) - 1),
+         split_cuts_x = [for(c = cx) c - x0], split_cuts_y = [for(c = cy) c - y0]);
+    echo(split_cut_x_hole_clearance = [for(c = cx) split_clear(c, split_hole_axis(0))],
+         split_cut_y_hole_clearance = [for(c = cy) split_clear(c, split_hole_axis(1))]);
 
     for(ci = [0:len(xs)-2]) {
         for(rj = [0:len(ys)-2]) {
@@ -166,17 +205,19 @@ module split_part() {
                             children();
                             translate([xs[ci], ys[rj], -big/2]) cube([xs[ci+1] - xs[ci], ys[rj+1] - ys[rj], big]);
                         }
-                        // flanges on the cut edges of this tile, trimmed to the tile
+                        // flanges on every cut edge of this tile, trimmed to the tile
                         intersection() {
                             union() {
-                                if(cut_x != undef) split_flange(0, cut_x, ci == 0 ? -1 : 1);
-                                if(cut_y != undef) split_flange(1, cut_y, rj == 0 ? -1 : 1);
+                                if(ci > 0) split_flange(0, xs[ci], 1) children();
+                                if(ci < len(xs) - 2) split_flange(0, xs[ci+1], -1) children();
+                                if(rj > 0) split_flange(1, ys[rj], 1) children();
+                                if(rj < len(ys) - 2) split_flange(1, ys[rj+1], -1) children();
                             }
                             translate([xs[ci], ys[rj], -big/2]) cube([xs[ci+1] - xs[ci], ys[rj+1] - ys[rj], big]);
                         }
                     }
-                    if(cut_x != undef) split_bolt_holes(0, cut_x, cut_y);
-                    if(cut_y != undef) split_bolt_holes(1, cut_y, cut_x);
+                    for(c = cx) split_bolt_holes(0, c, cy);
+                    for(c = cy) split_bolt_holes(1, c, cx);
                 }
             }
         }

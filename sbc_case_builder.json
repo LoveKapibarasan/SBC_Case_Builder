@@ -14034,7 +14034,7 @@
             "access_panel_rotation": "0",
             "access_panel_size": "[70,30]",
             "accessory_highlight": "false",
-            "accessory_name": "none",
+            "accessory_name": "ssi-eeb_pc",
             "adj": ".01",
             "bend_allowance": "1",
             "bottom_access_panel_enable": "false",
@@ -14067,7 +14067,7 @@
             "case_design": "shell",
             "case_offset_bz": "6",
             "case_offset_tz": "122",
-            "case_offset_x": "0",
+            "case_offset_x": "165",
             "case_offset_y": "0",
             "cooling": "default",
             "corner_fillet": "3",
@@ -14192,7 +14192,9 @@
             "top_standoff_type": "blind",
             "uart_opening": "default",
             "view": "model",
-            "wallthick": "3"
+            "wallthick": "3",
+            "split_keepout_x": "[[6,142],[164,300],[322,460]]",
+            "split_keepout_y": "[[177,313]]"
         }
     },
     "fileFormatVersion": "1"

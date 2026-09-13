@@ -106,14 +106,18 @@ split_bed_x = 220; // [100:1:500]
 split_bed_y = 220; // [100:1:500]
 // margin kept clear at the bed edges
 split_bed_margin = 8; // [0:1:40]
-// tile to render, "all" shows every tile spread apart
-split_tile = "all"; // [all, 0_0, 1_0, 0_1, 1_1]
+// tile to render as "column_row" counted from 0, "all" shows every tile spread apart
+split_tile = "all";
 // gap between tiles when showing all
 split_explode = 15; // [0:1:50]
-// cut position along x from the part edge, 0 picks one automatically clear of the mounting holes
+// cut position along x from the part edge for a two tile split, 0 picks one automatically
 split_x = 0; // [0:.1:500]
-// cut position along y from the part edge, 0 picks one automatically clear of the mounting holes
+// cut position along y from the part edge for a two tile split, 0 picks one automatically
 split_y = 0; // [0:.1:500]
+// x ranges [[min, max], ...] in case coordinates that automatic cuts must not cross, e.g. fan openings
+split_keepout_x = [];
+// y ranges [[min, max], ...] in case coordinates that automatic cuts must not cross
+split_keepout_y = [];
 // minimum distance from an automatic cut to any mounting hole
 split_hole_clear = 12; // [0:1:50]
 // height of the joint flange above the floor
