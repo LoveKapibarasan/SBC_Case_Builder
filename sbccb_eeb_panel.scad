@@ -35,7 +35,7 @@
 
                  everything prints flat side down, standoffs up, no support.
 
-           TODO: side panels
+           TODO: none
 */
 
     /* [View] */
@@ -91,6 +91,10 @@
     pad_r = 9; // [5:.5:20]
     // board thickness, reference model only
     board_t = 1.6; // [1:.1:3]
+
+    /* [Side Panels] */
+    // pilot holes in the outer rib for the sbccb_eeb_sides lip screws
+    side_screw_holes = true; // [true,false]
 
     /* [Print Bed] */
     // usable bed width
@@ -157,6 +161,24 @@
     // hex lattice, centre to centre distance between neighbouring cells
     hex_r = cell_size / sqrt(3);
     hex_p = cell_size + cell_wall;
+
+    // screws that fix the sbccb_eeb_sides wall lips to the underside of the outer
+    // rib, [wall, position along that wall in panel coordinates]. placed clear of
+    // standoff holes and tile seams
+    side_screws = [["rear", 60], ["rear", 230], ["front", 80], ["front", 240],
+                   ["left", 100], ["left", 250], ["right", 100], ["right", 250]];
+    function side_screw_xy(s) =
+        s[0] == "rear"  ? [s[1], rib_w/2] :
+        s[0] == "front" ? [s[1], panel_y - rib_w/2] :
+        s[0] == "left"  ? [rib_w/2, s[1]] : [panel_x - rib_w/2, s[1]];
+
+    // read by sbccb_eeb_sides through use <>
+    function eeb_panel_size() = [panel_x, panel_y];
+    function eeb_panel_rib_w() = rib_w;
+    function eeb_board_top_on_panel() = rib_t + standoff_height + board_t;
+    function eeb_board_offset() = [board_offset_x, board_offset_y];
+    function eeb_side_screws() = side_screws;
+    function eeb_key_dims() = [key_len, key_end, key_depth, key_waist];
 
     for(ci = [0:cols-1]) if(tw(ci) > bed_x - bed_margin)
         echo(str("WARNING: tile column ", ci, " is ", tw(ci), " mm, wider than the usable bed"));
@@ -275,6 +297,17 @@ module panel_tile(ci, rj) {
             // board screw holes, through so any screw length works
             for(p = pts) {
                 translate([p[0], p[1], -adj]) cylinder(d=standoff_hole, h=rib_t + standoff_height + 2*adj);
+            }
+            // blind pilot holes from below for the side panel lip screws
+            if(side_screw_holes) {
+                for(s = side_screws) {
+                    xy = side_screw_xy(s);
+                    lx = xy[0] - edges_x[ci];
+                    ly = xy[1] - edges_y[rj];
+                    if(lx >= 0 && lx < w && ly >= 0 && ly < h) {
+                        translate([lx, ly, -adj]) cylinder(d=2.6, h=rib_t - 1.5);
+                    }
+                }
             }
         }
         // pads near the panel edge are trimmed to the tile

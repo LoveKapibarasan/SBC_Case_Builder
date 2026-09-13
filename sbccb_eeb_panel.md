@@ -112,6 +112,7 @@ tile corner:
 | parameter | default | note |
 | --- | --- | --- |
 | `mount` | `"ssi-eeb"` | `"none"` for a plain vented panel |
+| `side_screw_holes` | true | pilot holes for the side panel lip screws |
 | `split_x` / `split_y` | 130 / 135 | seam positions, 0 splits equally to fit the bed |
 | `board_offset_x` / `_y` | 2.5 / 2.5 | board corner from the panel corner |
 | `standoff_height` | 8 | clearance under the board |
@@ -127,6 +128,10 @@ tile corner:
 If you move the seams, keep them clear of the standoffs; OpenSCAD echoes a warning
 when a tile exceeds the usable bed but does **not** check seam clearance.
 
-## Not done yet
+## Side panels
 
-- side panels
+[`sbccb_eeb_sides`](./sbccb_eeb_sides.md) adds vented walls around this panel. The
+base panel rests on lips along the bottom of the walls and is screwed to them from
+below. For that the outer rib carries 8 blind 2.6 mm pilot holes
+(`side_screw_holes`), 2 per side, placed clear of the standoff holes and tile seams.
+Set `side_screw_holes = false` for a panel used on its own.
