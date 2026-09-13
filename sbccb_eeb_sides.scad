@@ -1,5 +1,5 @@
 /*
-    SBC Case Builder Vented Side Panels
+    SBC Case Builder Vented Side Panels and Top Cover
     This file is part of SBC Case Builder https://github.com/hominoids/SBC_Case_Builder
 
     This program is free software: you can redistribute it and/or modify
@@ -33,10 +33,14 @@
                  expansion slot brackets. walls longer than the bed are split
                  and rejoined with the same butterfly keys as the base panel.
 
-                 walls print flat, outer face down, lip and ribs up, no support.
-                 posts print lying down.
+                 the top cover lies on the walls and posts, locates with a rim
+                 that drops just inside the walls, and screws into the top of the
+                 posts. it is split into a 2 x 2 grid joined with keys.
 
-           TODO: top cover, expansion card bracket retention
+                 walls and top cover tiles print flat, outer face down, ribs, lip
+                 and rim up, no support. posts print lying down.
+
+           TODO: expansion card bracket retention
 */
 
     use <./sbccb_eeb_panel.scad>;
@@ -45,13 +49,15 @@
     // "model" assembled case, "part" single part
     view = "model"; // [model, part]
     // part shown when view is "part"
-    part = "rear_0"; // [rear_0, rear_1, front_0, front_1, left_0, left_1, right_0, right_1, post, key]
+    part = "rear_0"; // [rear_0, rear_1, front_0, front_1, left_0, left_1, right_0, right_1, post, key, top_0_0, top_1_0, top_0_1, top_1_1]
     // show the base panel in the assembled model
     show_base = true; // [true,false]
     // show the motherboard outline in the assembled model
     show_board = true; // [true,false]
     // leave the front wall out of the model so the inside is visible
     cutaway = false; // [true,false]
+    // show the top cover in the assembled model
+    show_top = true; // [true,false]
 
     /* [Case] */
     // wall height from the desk
@@ -99,6 +105,26 @@
     slot_z = -3; // [-10:.1:10]
     // slot window height, a full height bracket is about 120
     slot_h = 118; // [30:.1:170]
+
+    /* [Top Cover] */
+    // position of the top cover vertical seam, 0 splits in half
+    top_split_x = 0; // [0:.1:400]
+    // position of the top cover horizontal seam, 0 splits in half
+    top_split_y = 0; // [0:.1:400]
+    // thickness of the top cover vented field
+    top_field_t = 3; // [1.5:.5:8]
+    // top cover thickness at the ribs
+    top_t = 6; // [3:.5:12]
+    // width of the perimeter rib, it has to cover the wall and the corner posts
+    top_rib_w = 22; // [16:1:40]
+    // depth of the locating rim that drops inside the walls
+    top_rim_h = 8; // [0:.5:20]
+    // thickness of the locating rim
+    top_rim_t = 3; // [2:.5:6]
+    // clearance between the rim and the inside of the walls
+    top_rim_gap = 1; // [0:.1:3]
+    // keys per seam per tile edge on the top cover
+    top_keys_per_seam = 3; // [1:1:8]
 
     /* [Hidden] */
     adj = 0.01;
@@ -289,7 +315,8 @@ module wall_key() {
 
 
 /* corner post. rear and front walls screw into the y faces, left and right walls
-   into the x faces, at different heights, so one part fits every corner */
+   into the x faces, at different heights, so one part fits every corner. the top
+   cover screws into the top end */
 
 module corner_post() {
 
@@ -299,6 +326,111 @@ module corner_post() {
             cylinder(d=2.6, h=post_s + 2*adj);
         for(v = post_v_lr) translate([-adj, post_s/2, v]) rotate([0,90,0])
             cylinder(d=2.6, h=post_s + 2*adj);
+        translate([post_s/2, post_s/2, case_height - top_pilot_depth])
+            cylinder(d=2.6, h=top_pilot_depth + adj);
+    }
+}
+
+
+/* top cover. covers the whole case outline, its perimeter rib lies on the walls
+   and posts, a locating rim drops just inside the walls between the posts, and it
+   screws into the top of each post. split into tiles joined with keys like the
+   walls. print orientation: outer face on the bed, ribs and rim up */
+
+    top_x = px + 2*(post_s + wall_t);
+    top_y = py + 2*(post_s + wall_t);
+    top_edges_x = [0, top_split_x > 0 ? top_split_x : top_x/2, top_x];
+    top_edges_y = [0, top_split_y > 0 ? top_split_y : top_y/2, top_y];
+    top_pilot_depth = 12;
+
+    // post centres in top cover coordinates
+    top_post_c = wall_t + post_s/2;
+    top_screws = [[top_post_c, top_post_c], [top_x - top_post_c, top_post_c],
+                  [top_post_c, top_y - top_post_c], [top_x - top_post_c, top_y - top_post_c]];
+
+    // rim segments between the posts [x, y, w, h]
+    rim_in = wall_t + top_rim_gap;
+    rim_end = wall_t + post_s + top_rim_gap;
+    top_rims = top_rim_h <= 0 ? [] : [
+        [rim_end, rim_in, top_x - 2*rim_end, top_rim_t],
+        [rim_end, top_y - rim_in - top_rim_t, top_x - 2*rim_end, top_rim_t],
+        [rim_in, rim_end, top_rim_t, top_y - 2*rim_end],
+        [top_x - rim_in - top_rim_t, rim_end, top_rim_t, top_y - 2*rim_end]];
+
+    function top_key_pos(len) = [for(k = [1:top_keys_per_seam]) len * k / (top_keys_per_seam + 1)];
+    function top_key_count() = 4 * top_keys_per_seam;
+
+    for(e = [top_edges_x[1], top_x - top_edges_x[1], top_edges_y[1], top_y - top_edges_y[1]])
+        if(e > 212) echo(str("WARNING: a top cover tile is ", e, " mm, larger than a 220 bed allows"));
+
+
+module key_pocket_at(thick) {
+
+    translate([0, 0, thick - key_depth])
+        linear_extrude(height = key_depth + adj)
+            polygon([[-key_len/2, -key_end/2], [0, -key_waist/2], [key_len/2, -key_end/2],
+                     [key_len/2, key_end/2], [0, key_waist/2], [-key_len/2, key_end/2]]);
+}
+
+
+module top_tile(ci, rj) {
+
+    x0 = top_edges_x[ci];
+    y0 = top_edges_y[rj];
+    w = top_edges_x[ci+1] - x0;
+    h = top_edges_y[rj+1] - y0;
+    lb = ci == 0 ? top_rib_w : wall_rib_w;
+    rb = ci == 1 ? top_rib_w : wall_rib_w;
+    bb = rj == 0 ? top_rib_w : wall_rib_w;
+    tb = rj == 1 ? top_rib_w : wall_rib_w;
+
+    difference() {
+        union() {
+            linear_extrude(height = top_field_t)
+                difference() {
+                    square([w, h]);
+                    wall_vents_2d(lb, bb, w - rb, h - tb, []);
+                }
+            linear_extrude(height = top_t)
+                difference() {
+                    square([w, h]);
+                    translate([lb, bb]) square([w - lb - rb, h - bb - tb]);
+                }
+            // locating rim, trimmed to this tile
+            intersection() {
+                translate([0, 0, top_t - adj]) cube([w, h, top_rim_h + adj]);
+                for(r = top_rims) translate([r[0] - x0, r[1] - y0, 0]) cube([r[2], r[3], top_t + top_rim_h]);
+            }
+        }
+        // post screws, countersunk into the outer face
+        for(s = top_screws) {
+            lx = s[0] - x0;
+            ly = s[1] - y0;
+            if(lx >= 0 && lx < w && ly >= 0 && ly < h) {
+                translate([lx, ly, -adj]) cylinder(d=3.4, h=top_t + 2*adj);
+                translate([lx, ly, -adj]) cylinder(d1=6.8, d2=3.4, h=1.7);
+            }
+        }
+        // key pockets on seam edges
+        if(ci == 0) for(y = top_key_pos(h)) translate([w, y, 0]) key_pocket_at(top_t);
+        if(ci == 1) for(y = top_key_pos(h)) translate([0, y, 0]) key_pocket_at(top_t);
+        if(rj == 0) for(x = top_key_pos(w)) translate([x, h, 0]) rotate([0,0,90]) key_pocket_at(top_t);
+        if(rj == 1) for(x = top_key_pos(w)) translate([x, 0, 0]) rotate([0,0,90]) key_pocket_at(top_t);
+    }
+}
+
+
+/* whole top cover in print orientation, with keys */
+
+module top_cover() {
+
+    for(ci = [0:1]) for(rj = [0:1])
+        translate([top_edges_x[ci], top_edges_y[rj], 0]) top_tile(ci, rj);
+    color("#d98b4a") {
+        for(rj = [0:1]) for(y = top_key_pos(top_edges_y[rj+1] - top_edges_y[rj]))
+            translate([top_edges_x[1], top_edges_y[rj] + y, top_t - key_depth]) wall_key();
+        for(ci = [0:1]) for(x = top_key_pos(top_edges_x[ci+1] - top_edges_x[ci]))
+            translate([top_edges_x[ci] + x, top_edges_y[1], top_t - key_depth]) rotate([0,0,90]) wall_key();
     }
 }
 
@@ -341,6 +473,12 @@ module case_model() {
         translate([-post_s, py, 0]) corner_post();
         translate([px, py, 0]) corner_post();
     }
+    // top cover flipped from print orientation, ribs down onto the walls
+    if(show_top) {
+        color("#4a90d9", 0.9)
+            translate([-(post_s + wall_t), -(post_s + wall_t), case_height + top_t])
+                mirror([0,0,1]) top_cover();
+    }
 }
 
 
@@ -362,4 +500,8 @@ if(view == "part") {
     if(part == "right_1") wall_tile("right", 1);
     if(part == "post")    corner_post();
     if(part == "key")     wall_key();
+    if(part == "top_0_0") top_tile(0, 0);
+    if(part == "top_1_0") top_tile(1, 0);
+    if(part == "top_0_1") top_tile(0, 1);
+    if(part == "top_1_1") top_tile(1, 1);
 }
