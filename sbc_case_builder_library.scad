@@ -34,6 +34,7 @@ include <./mod/indent.scad>;
 include <./mod/fillets.scad>;
 include <./mod/place.scad>;
 include <./mod/sub.scad>;
+include <./mod/split.scad>;
 
 include <./lib/access_panel.scad>;
 include <./lib/art.scad>;

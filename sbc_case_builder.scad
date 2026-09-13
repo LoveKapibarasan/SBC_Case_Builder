@@ -97,6 +97,36 @@ bottom_clearence = 3.5; //[-10:.01:10]
 // enable flat blank section for export
 flat_blank_section =  false;
 
+/* [Print Bed Split] */
+// split the top or bottom part into tiles that fit the print bed, part view with shell cases
+split_part_enable = false; // [true,false]
+// usable print bed width
+split_bed_x = 220; // [100:1:500]
+// usable print bed depth
+split_bed_y = 220; // [100:1:500]
+// margin kept clear at the bed edges
+split_bed_margin = 8; // [0:1:40]
+// tile to render, "all" shows every tile spread apart
+split_tile = "all"; // [all, 0_0, 1_0, 0_1, 1_1]
+// gap between tiles when showing all
+split_explode = 15; // [0:1:50]
+// cut position along x from the part edge, 0 picks one automatically clear of the mounting holes
+split_x = 0; // [0:.1:500]
+// cut position along y from the part edge, 0 picks one automatically clear of the mounting holes
+split_y = 0; // [0:.1:500]
+// minimum distance from an automatic cut to any mounting hole
+split_hole_clear = 12; // [0:1:50]
+// height of the joint flange above the floor
+split_flange_h = 6; // [3:.5:20]
+// thickness of each joint flange
+split_flange_t = 4; // [2:.5:10]
+// joint bolt clearance hole, M3
+split_bolt_dia = 3.4; // [2:.1:6]
+// target spacing between joint bolts
+split_bolt_spacing = 40; // [15:1:100]
+// distance from a flange end to the first bolt
+split_bolt_edge = 6; // [3:1:30]
+
 /* [    Standard Motherboard Case Adjustments] */
 // adjustment for ssi-eeb, ssi-ceb, atx, micro-atx, dtx, flex-atx, mini-dtx, mini-itx, mini-stx, nano-itx,nuc, pico-itx PCB thickness from 2mm default//
 standard_motherboard_thickness =  0; //[-3:.01:3]
@@ -1325,7 +1355,7 @@ if (view == "model") {
     }
 //}
 // part
-if (view == "part") {
+module case_part_view() {
     if(individual_part == "top") {
         if(case_design == "shell") {
             translate([0,depth,case_z]) rotate([180,0,0]) case_top(case_design);
@@ -1554,6 +1584,14 @@ if (view == "part") {
                 }
             }
         }
+    }
+}
+if (view == "part") {
+    if(split_part_enable == true && case_design == "shell" && (individual_part == "top" || individual_part == "bottom")) {
+        split_part() case_part_view();
+    }
+    else {
+        case_part_view();
     }
 }
 if(case_design == "tray" || case_design == "tray_vu5" || case_design == "tray_vu7" || case_design == "tray_sides") {
